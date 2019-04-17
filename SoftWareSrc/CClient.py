@@ -12,13 +12,17 @@ import threading
 import os
 from Encryption import * 
 class CClient:
-    def __init__(self,host='127.0.0.1',port=8878,logF="DefaultServerLog.txt",inP=sys.stdin,outP=sys.stdout):
+    def __init__(self,host='127.0.0.1',port=8878,logF="DefaultServerLog.txt",inP=sys.stdin,outP=sys.stdout,pfile='Password.txt'):
         self.addr=(host,port)
-        self.currentLoginInfo=("2472942577@qq.com","egerge2")
+        self.pfile=pfile
+        self.currentLoginInfo=("","")
+        self.loginInfos={}
+        self.loadFile(pfile)
         self.encryption=Encryption(self.currentLoginInfo[1])
         self.logFile=logF
         self.socket=socket(AF_INET,SOCK_STREAM)
         self.socketConnected=False
+        self.stoped=False
         self.outStream=outP
         self.inStream=inP
         self.inputThread=threading.Thread(target=self.winput)
@@ -26,7 +30,34 @@ class CClient:
         #self.listenningSocket=socket(AF_INET,SOCK_STREAM)
         #self.listenningSocket.bind((host,port))
         #self.listenningSocket.listen(10)
-    
+    def loadFile(self,filename):
+        if os.path.exists(filename):
+            print('L')
+            f=open(filename,'r')
+            
+            for i in f.readlines():
+                us=i[:-1].split(',')
+                if len(us)==2:
+                    usname=us[0]
+                    pw=us[1]
+                    self.loginInfos[usname]=(usname,pw)
+                    self.setDefault(usname)
+        
+    def setDefault(self,name):
+        if name in self.loginInfos.keys():
+            self.currentLoginInfo=self.loginInfos[name]
+            return True
+        return False
+    def addUser(self,name,pwd):
+        if not (name in self.loginInfos.keys()):
+            self.loginInfos[name]=(name,pwd)
+            return True
+        return False
+    def addAndSet(self,name,pwd):
+        if self.addUser(name,pwd):
+            return self.setDefault(name)
+        else:
+            return False
     def Start(self):
         if os.path.exists(self.logFile):
             self.logFile=open(self.logFile,'a+')
@@ -36,20 +67,59 @@ class CClient:
         while 1:
             try:
                 callback=self.socket.recv(2048).decode('gbk')
+                if callback=="stop":
+                    self.End()
+                    return
                 self.outStream.write("%s"%(callback))
             except Exception as e:
                 self.outStream.write("%s\n"%("停止连接"))
                 return
     def winput(self):
-        while 1:
+        while not self.stoped:
             #self.outStream.write(">")
             a=self.inStream.readline()
            # print('|'+a+'|')
             if a=='stop\n':
                 self.End()
                 return
+            if a=='CurrentUsers\n':
+                self.outStream.write('%s\n'%(str(self.loginInfos)))
+                continue
+            if a=='CurrentUser\n':
+                self.outStream.write('%s\n'%(str(self.currentLoginInfo)))
+                continue
+            if a=='Set\n':
+                self.outStream.write('Input username\n>')
+                a2=self.inStream.readline()[:-1]
+                if self.setDefault(a2):
+                    self.outStream.write('Success\n')
+                else:
+                    self.outStream.write('Error, incorrect user name\n')
+            if a=='AddAndSet\n':
+                self.outStream.write('Input username and password\n>')
+                a2=self.inStream.readline()[:-1]
+                aa=a2.split(',')
+                if len(aa)==2:
+                    if self.addAndSet(aa[0],aa[1]):        
+                        self.outStream.write('Success\n')
+                    else:
+                        self.outStream.write('Error, might be multidefined\n')
+                else:
+                    self.outStream.write('Error, format "username,password"\n')
+            if a=='Add\n':
+                self.outStream.write('Input username and password\n>')
+                a2=self.inStream.readline()[:-1]
+                aa=a2.split(',')
+                if len(aa)==2:
+                    if self.addUser(aa[0],aa[1]):        
+                        self.outStream.write('Success\n')
+                    else:
+                        self.outStream.write('Error, might be multidefined\n')
+                else:
+                    self.outStream.write('Error, format "username,password"\n')
             if a=='Connect\n':
-                print('Connecting')
+                self.outStream.write('Connecting\n')
+               # print('Connecting')
                 self.CreateNewClient()
                 self.encryption.LoadKey(self.currentLoginInfo[0])
                 i1=self.encryption.EncryptSring(self.currentLoginInfo[1])
@@ -68,16 +138,23 @@ class CClient:
                     return
             self.ExecuteCMD(a)
             #self.outStream.write("%s"%(r))
-            if r=="stop":
-                self.End()
-                return
+           # if r=="stop":
+            #    self.End()
+           #     return
+           
     def End(self):
         self.logFile.close()
         self.outStream.write("%s\n>"%("停止中。。。"))
         r=self.ExecuteCMD('stop')
        # if r=='stop':
-        self.socket.close()
-        self.socketConnected=False
+        if self.socketConnected:
+            self.socket.close()
+            self.socketConnected=False
+        r=open(self.pfile,'w')
+        for k in self.loginInfos:
+            r.write('%s,%s\n'%(self.loginInfos[k][0],self.loginInfos[k][1]))
+        r.close()
+        self.stoped=True
     def ExecuteCMD(self,cmd):
         if self.socketConnected and cmd:
             cmd="["+self.currentLoginInfo[0]+","+self.currentLoginInfo[1]+"]"+cmd
