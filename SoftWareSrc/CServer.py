@@ -127,7 +127,7 @@ class CServer:
                     s.close()
                     break
                # print ('|'+sentence+'|')
-                if sentence=='show\n':
+                if sentence=='show':
                     self.outStream.write('收到显示请求\n')
                     w=self.EhowClients()
                     s.send(('目前连接:%s\n'%(str(w))).encode('gbk'))

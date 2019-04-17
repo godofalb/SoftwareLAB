@@ -32,7 +32,7 @@ class CClient:
         #self.listenningSocket.listen(10)
     def loadFile(self,filename):
         if os.path.exists(filename):
-            print('L')
+          # print('L')
             f=open(filename,'r')
             
             for i in f.readlines():
@@ -75,8 +75,11 @@ class CClient:
                 self.outStream.write("%s\n"%("停止连接"))
                 return
     def winput(self):
+        self.outStream.write("Welcome to use\ntype 'Help' for more informatiom\n")
         while not self.stoped:
-            #self.outStream.write(">")
+            if not self.socketConnected:
+                self.outStream.write(">")
+                self.outStream.flush()
             a=self.inStream.readline()
            # print('|'+a+'|')
             if a=='stop\n':
@@ -117,6 +120,26 @@ class CClient:
                         self.outStream.write('Error, might be multidefined\n')
                 else:
                     self.outStream.write('Error, format "username,password"\n')
+            if a=='Help\n':
+                self.outStream.write('''
+local ins:
+Command      Usage
+Set          Set default user
+Add          Add new user
+AddAndSet    Add and set
+Connect      Use this user to login
+CurrentUsers Show the current user table, which is load from Password.txt
+CurrentUser  Show the curretn user
+
+Remote ins:
+Command      Usage
+stop         stop the connection
+show         show the current user on remote server
+Dos command  run in Remote
+
+                    ''')
+               # print('Connecting')
+                continue
             if a=='Connect\n':
                 self.outStream.write('Connecting\n')
                # print('Connecting')
