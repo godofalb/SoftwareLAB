@@ -11,8 +11,13 @@ import sys
 import threading
 import os
 from Encryption import * 
-class CClient:
-    def __init__(self,host='127.0.0.1',port=8878,logF="DefaultServerLog.txt",inP=sys.stdin,outP=sys.stdout,pfile='Password.txt'):
+import queue
+
+class CClient(threading.Thread):
+    def __init__(self, ginp_q=None, gout_q=None,host='127.0.0.1', port=8878, 
+                logF="DefaultServerLog.txt",inP=sys.stdin, outP=sys.stdout, 
+                pfile='Password.txt'):
+        super(CClient, self).__init__()
         self.addr=(host,port)
         self.pfile=pfile
         self.currentLoginInfo=("","")
@@ -30,6 +35,10 @@ class CClient:
         #self.listenningSocket=socket(AF_INET,SOCK_STREAM)
         #self.listenningSocket.bind((host,port))
         #self.listenningSocket.listen(10)
+
+        self.ginp_q = ginp_q
+        self.gout_q = gout_q
+
     def loadFile(self,filename):
         if os.path.exists(filename):
           # print('L')
@@ -70,58 +79,94 @@ class CClient:
                 if callback=="stop":
                     self.End()
                     return
-                self.outStream.write("%s"%(callback))
+                # self.outStream.write("%s"%(callback))
+                self.gout_q.put("%s"%(callback))
             except Exception as e:
-                self.outStream.write("%s\n"%("停止连接"))
+                # self.outStream.write("%s\n"%("停止连接"))
+                self.gout_q.put("%s\n"%("停止连接"))
                 return
     def winput(self):
-        self.outStream.write("Welcome to use\ntype 'Help' for more informatiom\n")
+        # self.outStream.write("Welcome to use\ntype 'Help' for more informatiom\n")
         while not self.stoped:
             if not self.socketConnected:
                 self.outStream.write(">")
                 self.outStream.flush()
-            a=self.inStream.readline()
-           # print('|'+a+'|')
-            if a=='stop\n':
+            # a=self.inStream.readline()
+            a = self.ginp_q.get()
+            # print('|'+a+'|')
+            if a=='stop':
                 self.End()
                 return
-            if a=='CurrentUsers\n':
-                self.outStream.write('%s\n'%(str(self.loginInfos)))
+            elif a=='CurrentUsers':
+                # self.outStream.write('%s\n'%(str(self.loginInfos)))
+                self.gout_q.put('%s\n'%(str(self.loginInfos)))
                 continue
-            if a=='CurrentUser\n':
-                self.outStream.write('%s\n'%(str(self.currentLoginInfo)))
+            elif a=='CurrentUser':
+                # self.outStream.write('%s\n'%(str(self.currentLoginInfo)))
+                self.gout_q.put('%s\n'%(str(self.currentLoginInfo)))
                 continue
-            if a=='Set\n':
-                self.outStream.write('Input username\n>')
-                a2=self.inStream.readline()[:-1]
+            elif a=='Set':
+                # self.outStream.write('Input username\n>')
+                self.gout_q.put('Input username\n>')
+                # a2=self.inStream.readline()[:-1]
+                a2 = self.ginp_q.get()
                 if self.setDefault(a2):
-                    self.outStream.write('Success\n')
+                    # self.outStream.write('Success\n')
+                    self.gout_q.put('Success\n')
                 else:
-                    self.outStream.write('Error, incorrect user name\n')
-            if a=='AddAndSet\n':
-                self.outStream.write('Input username and password\n>')
-                a2=self.inStream.readline()[:-1]
+                    # self.outStream.write('Error, incorrect user name\n')
+                    self.gout_q.put('Error, incorrect user name\n')
+            elif a=='AddAndSet':
+                # self.outStream.write('Input username and password\n>')
+                self.gout_q.put('Input username and password\n>')
+                # a2=self.inStream.readline()[:-1]
+                a2 = self.ginp_q.get()
                 aa=a2.split(',')
                 if len(aa)==2:
                     if self.addAndSet(aa[0],aa[1]):        
-                        self.outStream.write('Success\n')
+                        # self.outStream.write('Success\n')
+                        self.gout_q.put('Success\n')
                     else:
-                        self.outStream.write('Error, might be multidefined\n')
+                        # self.outStream.write('Error, might be multidefined\n')
+                        self.gout_q.put('Error, might be multidefined\n')
                 else:
-                    self.outStream.write('Error, format "username,password"\n')
-            if a=='Add\n':
-                self.outStream.write('Input username and password\n>')
-                a2=self.inStream.readline()[:-1]
+                    # self.outStream.write('Error, format "username,password"\n')
+                    self.gout_q.put('Error, format "username,password"\n')
+            elif a=='Add':
+                # self.outStream.write('Input username and password\n>')
+                self.gout_q.put('Input username and password\n>')
+                # a2=self.inStream.readline()[:-1]
+                a2 = self.ginp_q.get()
                 aa=a2.split(',')
                 if len(aa)==2:
                     if self.addUser(aa[0],aa[1]):        
-                        self.outStream.write('Success\n')
+                        # self.outStream.write('Success\n')
+                        self.gout_q.put('Success\n')
                     else:
-                        self.outStream.write('Error, might be multidefined\n')
+                        # self.outStream.write('Error, might be multidefined\n')
+                        self.gout_q.put('Error, might be multidefined\n')
                 else:
-                    self.outStream.write('Error, format "username,password"\n')
-            if a=='Help\n':
-                self.outStream.write('''
+                    # self.outStream.write('Error, format "username,password"\n')
+                    self.gout_q.put('Error, format "username,password"\n')
+            elif a=='Help':
+#                 self.outStream.write('''
+# local ins:
+# Command      Usage
+# Set          Set default user
+# Add          Add new user
+# AddAndSet    Add and set
+# Connect      Use this user to login
+# CurrentUsers Show the current user table, which is load from Password.txt
+# CurrentUser  Show the curretn user
+
+# Remote ins:
+# Command      Usage
+# stop         stop the connection
+# show         show the current user on remote server
+# Dos command  run in Remote
+
+#                     ''')
+                self.gout_q.put('''
 local ins:
 Command      Usage
 Set          Set default user
@@ -137,11 +182,12 @@ stop         stop the connection
 show         show the current user on remote server
 Dos command  run in Remote
 
-                    ''')
+''')
                # print('Connecting')
                 continue
-            if a=='Connect\n':
-                self.outStream.write('Connecting\n')
+            elif a=='Connect':
+                # self.outStream.write('Connecting\n')
+                self.gout_q.put('Connecting\n')
                # print('Connecting')
                 self.CreateNewClient()
                 self.encryption.LoadKey(self.currentLoginInfo[0])
@@ -157,7 +203,8 @@ Dos command  run in Remote
                     continue
                 else:
                     self.logging("Error login")
-                    self.outStream.write("%s"%('Error login'))
+                    # self.outStream.write("%s"%('Error login'))
+                    self.gout_q.put("%s"%('Error login'))
                     return
             self.ExecuteCMD(a)
             #self.outStream.write("%s"%(r))
@@ -167,7 +214,8 @@ Dos command  run in Remote
            
     def End(self):
         self.logFile.close()
-        self.outStream.write("%s\n>"%("停止中。。。"))
+        # self.outStream.write("%s\n>"%("停止中。。。"))
+        self.gout_q("%s\n>"%("停止中。。。"))
         r=self.ExecuteCMD('stop')
        # if r=='stop':
         if self.socketConnected:
@@ -192,7 +240,8 @@ Dos command  run in Remote
         self.socket.connect(self.addr)
         self.socketConnected=True
         
-        print('Connected\n>')
+        # print('Connected\n>')
+        self.gout_q.put('Connected\n>')
         '''
         a=input()
         a=a.encode('utf-8')
@@ -203,7 +252,22 @@ Dos command  run in Remote
         self.socket.close()'''
     def logging(self,text):
         self.logFile.write(text)
-if __name__=='__main__':
-    c=CClient()
-    c.Start()
-    #c.CreateNewClient()
+
+# if __name__=='__main__':
+#     c=CClient()
+#     c.Start()
+#     #c.CreateNewClient()
+#     '''
+
+# serverName="127.0.0.1"
+# serverPort=44000
+# clientSocket=socket(AF_INET,SOCK_STREAM)
+# clientSocket.bind(('',44001))
+# print((serverName,serverPort))
+# clientSocket.connect((serverName,serverPort))
+# sentence=raw_input("Input lowcase sentence:")
+# clientSocket.send(sentence)
+# modifiedSentence=clientSocket.recv(1024)
+# print 'From Server:',modifiedSentence
+# clientSocket.close()
+# '''
